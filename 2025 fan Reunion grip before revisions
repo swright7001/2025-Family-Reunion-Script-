@@ -1,0 +1,59 @@
+function sendEmail(e) {
+  // Access the response sheet by name.
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Malloy McLaughlin-Ray 2025 Family Reunion Registration Form (Responses)");
+  
+  // Get the last row (assuming that’s the latest form submission)
+  var lastRow = sheet.getLastRow();
+  
+  // Get the values from that row as an array.
+  var formData = sheet.getRange(lastRow, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  // Log the entire formData array as JSON for verification.
+  Logger.log("Form Data Retrieved: " + JSON.stringify(formData));
+  
+  // Retrieve the contact email (Column 6 → index 5) and Total Fee (Column 30 → index 29).
+  var email = formData[5];
+  var totalFee = formData[29];
+
+  // Retrieve Payment Method (Column 26 → index 25)
+  var paymentMethod = formData[25];
+
+  Logger.log("Email Retrieved (index 5): " + email);
+  Logger.log("Total Fee Retrieved (index 29): " + totalFee);
+  Logger.log("Payment Method Retrieved (index 25): " + paymentMethod);
+  
+  // If totalFee is missing or not a number, mark it as "Not Calculated"
+  if (!totalFee || isNaN(totalFee)) {
+    totalFee = "Not Calculated";
+    Logger.log("Total fee is invalid or missing.");
+  }
+  
+  // Only send an email if we have a valid email address.
+  if (!email || email.trim() === "") {
+    Logger.log("No email found. Email not sent.");
+    return;
+  }
+
+  // Payment Links
+  var cashAppLink = "https://cash.app/$mpranger";  // Your CashApp link
+  var zelleInstructions = "Please send your payment via Zelle to rangermp100@gmail.com or (301) 318-6146. *Please choose First Citizen Bank Account*"; // Replace with your Zelle details
+  var cashPaymentMessage = "You decided to pay in cash. Please contact (301) 318-6146 or NC contact (910) 964-9423."; // Replace with your actual phone number
+
+  // Construct Payment Instructions
+  var paymentInstructions = "";
+  if (paymentMethod && paymentMethod.toLowerCase().includes("cashapp")) {
+    paymentInstructions = "To complete your payment, please use CashApp:\n" + cashAppLink;
+  } else if (paymentMethod && paymentMethod.toLowerCase().includes("zelle")) {
+    paymentInstructions = "To complete your payment, please use Zelle:\n" + zelleInstructions;
+  } else {
+    paymentInstructions = cashPaymentMessage; // Use cash payment message if no method is specified
+  }
+
+  var subject = "Family Reunion Registration Fee Confirmation";
+  var message = "Hello,\n\nThank you for registering for the family reunion! Your total fee is $" + totalFee + 
+                ".\n\n" + paymentInstructions + 
+                "\n\nBest regards,\nFamily Reunion Team";
+  
+  MailApp.sendEmail(email, subject, message);
+  Logger.log("Email sent successfully to: " + email);
+}
