@@ -1,0 +1,94 @@
+function sendEmail(e) {
+  if (!e || !e.range) return;
+
+  var sheet = e.range.getSheet();
+  var row = e.range.getRow();
+  var lastCol = sheet.getLastColumn();
+
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return (h || "").toString().trim();
+  });
+
+  function col(headerName) {
+    var idx = headers.indexOf(headerName);
+    return idx >= 0 ? idx + 1 : null;
+  }
+
+  function colStartsWith(prefix) {
+    for (var i = 0; i < headers.length; i++) {
+      if (headers[i].indexOf(prefix) === 0) return i + 1;
+    }
+    return null;
+  }
+
+  function val(c) {
+    return c ? sheet.getRange(row, c).getValue() : "";
+  }
+
+  // Disambiguate duplicate "Email Address" columns by picking the one AFTER Address
+  var addressCol = col("Address");
+  var emailCols = [];
+  for (var i = 0; i < headers.length; i++) if (headers[i] === "Email Address") emailCols.push(i + 1);
+  var emailCol = emailCols.length === 1 ? emailCols[0] : null;
+  if (!emailCol && emailCols.length > 1 && addressCol) {
+    for (var j = 0; j < emailCols.length; j++) {
+      if (emailCols[j] > addressCol) { emailCol = emailCols[j]; break; }
+    }
+    if (!emailCol) emailCol = emailCols[0];
+  }
+
+  var email = (val(emailCol) || "").toString().trim();
+  if (!email) return;
+
+  var paymentMethodCol = colStartsWith("4. Payment Submission Confirmation");
+  var paymentMethod = (val(paymentMethodCol) || "").toString().trim();
+
+  // Fee selection counts (these ARE in your 2026 sheet)
+  var under5Col = col("3. Registration Fee Selection [Ages 5 & Under - Free]");
+  var age6to12Col = col("3. Registration Fee Selection [Ages 6 to 12 - $15]");
+  var age13upCol = col("3. Registration Fee Selection [Ages 13 & Up - $30]");
+
+  var under5 = Number(val(under5Col) || 0);
+  var age6to12 = Number(val(age6to12Col) || 0);
+  var age13up = Number(val(age13upCol) || 0);
+
+  var totalAttendees = under5 + age6to12 + age13up;
+  var reunionFee = (age6to12 * 15) + (age13up * 30);
+
+  // Dance
+  var danceYesNoCol = col("Will you attend the social/dance event before the reunion?");
+  var danceCountCol = col("If yes, How many people in your group will be attending the social dance event? (Enter the total number of individuals)");
+
+  var danceYesNo = (val(danceYesNoCol) || "").toString().trim().toLowerCase();
+  var danceCount = (danceYesNo === "yes") ? Number(val(danceCountCol) || 0) : 0;
+
+  // $35 per couple + $20 per leftover single
+  var couples = Math.floor(danceCount / 2);
+  var singles = danceCount % 2;
+  var danceFee = (couples * 35) + (singles * 20);
+
+  var totalFee = reunionFee + danceFee;
+
+  // Payment instructions
+  var cashAppLink = "https://cash.app/$mpranger";
+  var zelleInstructions = "Please send your payment via Zelle to rangermp100@gmail.com or (301) 318-6146. *Please choose First Citizen Bank Account*";
+  var cashPaymentMessage = "You decided to pay in cash. Please contact (301) 318-6146 or NC contact (910) 964-9423.";
+
+  var pm = paymentMethod.toLowerCase();
+  var paymentInstructions = cashPaymentMessage;
+  if (pm.indexOf("cashapp") !== -1) paymentInstructions = "To complete your payment, please use CashApp:\n" + cashAppLink;
+  else if (pm.indexOf("zelle") !== -1) paymentInstructions = "To complete your payment, please use Zelle:\n" + zelleInstructions;
+
+  var subject = "Family Reunion Registration Fee Confirmation";
+  var message =
+    "Hello,\n\n" +
+    "Thank you for registering for the family reunion!\n\n" +
+    "Attendee Count: " + totalAttendees + "\n" +
+    "Reunion Fee: $" + reunionFee.toFixed(2) + "\n" +
+    "Dance Fee: $" + danceFee.toFixed(2) + "\n" +
+    "Total Due: $" + totalFee.toFixed(2) + "\n\n" +
+    paymentInstructions + "\n\n" +
+    "Best regards,\nFamily Reunion Committee";
+
+  MailApp.sendEmail(email, subject, message);
+}
